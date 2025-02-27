@@ -1,0 +1,12 @@
+version: "3"
+
+services:
+  reserva-casino:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: reserva-casino-image
+    container_name: reserva-casino
+    restart: always
+    ports:
+      - "3005:3005"
