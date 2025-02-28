@@ -68,7 +68,8 @@ export class PuppeterService {
     return { status: "success puppeteer" };
   }
 
-  @Cron("*/20 * * * * *", {
+  @Cron("0 6 * * *", {
+    //* Todos los días a las 6 am
     name: "reserva automática de almuerzo",
     timeZone: "America/Bogota",
   })
