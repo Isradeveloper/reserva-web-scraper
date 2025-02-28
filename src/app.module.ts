@@ -16,7 +16,7 @@ import { envSchema } from "./config/joi.validation";
     UsersModule,
     TypeOrmModule.forRoot({
       type: "sqlite",
-      database: "database.sqlite",
+      database: "data/database.sqlite",
       synchronize: true,
       entities: [User],
     }),
