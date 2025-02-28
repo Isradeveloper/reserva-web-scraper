@@ -9,4 +9,6 @@ services:
     container_name: reserva-casino
     restart: always
     ports:
-      - "3005:3005"
+      - "${APP_PORT}:${APP_PORT}"
+    env_file:
+      - .env

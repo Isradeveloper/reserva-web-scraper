@@ -5,7 +5,10 @@ import { PuppeterModule } from "./puppeter/puppeter.module";
 import { UsersModule } from "./users/users.module";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { User } from "./users/entities/user.entity";
-import { MailModule } from './mail/mail.module';
+import { MailModule } from "./mail/mail.module";
+import { ConfigModule } from "@nestjs/config";
+import { envConfig } from "./config/env.config";
+import { envSchema } from "./config/joi.validation";
 
 @Module({
   imports: [
@@ -18,6 +21,10 @@ import { MailModule } from './mail/mail.module';
       entities: [User],
     }),
     MailModule,
+    ConfigModule.forRoot({
+      load: [envConfig],
+      validationSchema: envSchema,
+    }),
   ],
   controllers: [AppController],
   providers: [AppService],
