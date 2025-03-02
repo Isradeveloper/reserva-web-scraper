@@ -57,29 +57,29 @@ export class CasinoReservationService {
 
       if (user && !this.isBrowserOpen) {
         this.logger.log(`Procesando reserva para ${user.name}...`);
-        // let reserva = await this.reservaCasino(user);
-        await this.notificarReserva(user, "Casino de prueba", "2021-10-01");
+        let reserva = await this.reservaCasino(user);
+        // await this.notificarReserva(user, "Casino de prueba", "2021-10-01");
 
-        // if (!reserva.success) {
-        //   // Reintentos
-        //   for (let i = 1; i <= MAX_RETRIES; i++) {
-        //     this.logger.log(`Intento ${i + 1} para ${user.name}...`);
-        //     reserva = await this.reservaCasino(user);
+        if (!reserva.success) {
+          // Reintentos
+          for (let i = 1; i <= MAX_RETRIES; i++) {
+            this.logger.log(`Intento ${i + 1} para ${user.name}...`);
+            reserva = await this.reservaCasino(user);
 
-        //     if (reserva.success) {
-        //       this.logger.log(
-        //         `Reserva exitosa para ${user.name} en el intento ${i + 1}.`,
-        //       );
-        //       break;
-        //     }
-        //   }
+            if (reserva.success) {
+              this.logger.log(
+                `Reserva exitosa para ${user.name} en el intento ${i + 1}.`,
+              );
+              break;
+            }
+          }
 
-        //   // Si no se pudo reservar después de los intentos
-        //   if (!reserva.success) {
-        //     usersWithErrors.push({ user, error: reserva.error });
-        //     user = undefined;
-        //   }
-        // }
+          // Si no se pudo reservar después de los intentos
+          if (!reserva.success) {
+            usersWithErrors.push({ user, error: reserva.error });
+            user = undefined;
+          }
+        }
       }
     }
 
@@ -117,7 +117,7 @@ export class CasinoReservationService {
     puppeteer.use(StealthPlugin());
 
     const browser = await puppeteer.launch({
-      headless: false,
+      headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
     });
     try {
@@ -136,6 +136,8 @@ export class CasinoReservationService {
       await page.click(
         "#kt_body > div > div > div.login-container.order-2.order-lg-1.d-flex.flex-center.flex-row-fluid.px-7.pt-lg-0.pb-lg-0.pt-4.pb-6.bg-white > div > div > form > div.pb-lg-0.pb-5 > button",
       );
+
+      await page.waitForNavigation({ waitUntil: "networkidle0" });
 
       await page.waitForSelector("#kt_header_mobile");
 
