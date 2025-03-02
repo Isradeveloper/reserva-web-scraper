@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
-import { PuppeterModule } from "./puppeter/puppeter.module";
+import { CasinoReservationModule } from "./casino-reservation/casino-reservation.module";
 import { UsersModule } from "./users/users.module";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { User } from "./users/entities/user.entity";
@@ -12,7 +12,7 @@ import { envSchema } from "./config/joi.validation";
 
 @Module({
   imports: [
-    PuppeterModule,
+    CasinoReservationModule,
     UsersModule,
     TypeOrmModule.forRoot({
       type: "sqlite",

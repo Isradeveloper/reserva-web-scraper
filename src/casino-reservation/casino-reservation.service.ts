@@ -10,7 +10,7 @@ import { existsSync, unlinkSync } from "fs";
 import { Page } from "puppeteer";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { ImgToB64, sleep } from "src/common/helpers";
+import { clickWithJS, ImgToB64, sleep } from "src/common/helpers";
 import { createFolder } from "src/common/helpers/create-folder";
 import { sendMailOptions } from "src/mail/interfaces/send-mail-options.interface";
 import { MailService } from "src/mail/mail.service";
@@ -18,7 +18,7 @@ import { User } from "src/users/entities/user.entity";
 import { Repository } from "typeorm";
 
 @Injectable()
-export class PuppeterService {
+export class CasinoReservationService {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -27,58 +27,18 @@ export class PuppeterService {
   ) {}
 
   private isBrowserOpen = false;
+  private logger = new Logger(CasinoReservationService.name);
 
-  async test() {
-    puppeteer.use(StealthPlugin());
-    // Launch the browser and open a new blank page
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
-      executablePath: "/usr/bin/chromium-browser",
-    });
-    const page = await browser.newPage();
-
-    // Navigate the page to a URL
-    await page.goto("https://developer.chrome.com/", {
-      waitUntil: "networkidle0",
-    });
-
-    // Set screen size
-    await page.setViewport({ width: 1080, height: 1024 });
-
-    // Type into search box
-    await page.type(".devsite-search-field", "automate beyond recorder");
-
-    // Wait and click on first result
-    const searchResultSelector = ".devsite-result-item-link";
-    await page.waitForSelector(searchResultSelector);
-    await page.click(searchResultSelector);
-
-    // Locate the full title with a unique string
-    const textSelector = await page.waitForSelector(
-      "text/Customize and automate",
-    );
-    const fullTitle = await textSelector?.evaluate((el) => el.textContent);
-
-    // Print the full title
-    console.log('The title of this blog post is "%s".', fullTitle);
-
-    await browser.close();
-
-    return { status: "success puppeteer" };
-  }
-
-  @Cron("0 6 * * *", {
+  @Cron("*/30 * * * * *", {
     //* Todos los días a las 6 am
     name: "reserva automática de almuerzo",
     timeZone: "America/Bogota",
   })
   async reservarUsuarios() {
-    const logger = new Logger("PuppeterService");
     const MAX_RETRIES = 5;
 
     if (!this.isBrowserOpen) {
-      logger.log("Ejecutando cron job de reservas de casino...");
+      this.logger.log("Ejecutando cron job de reservas de casino...");
     }
 
     const users = await this.userRepository.find({
@@ -89,36 +49,37 @@ export class PuppeterService {
     const usersWithErrors: { user: User; error: string | undefined }[] = [];
 
     if (!this.isBrowserOpen) {
-      logger.log(`Usuarios encontrados: ${users.length}`);
+      this.logger.log(`Usuarios encontrados: ${users.length}`);
     }
 
     while (usersWithoutSuccess.length > 0) {
       let user = usersWithoutSuccess.shift();
 
       if (user && !this.isBrowserOpen) {
-        logger.log(`Procesando reserva para ${user.name}...`);
-        let reserva = await this.reservaCasino(user);
+        this.logger.log(`Procesando reserva para ${user.name}...`);
+        // let reserva = await this.reservaCasino(user);
+        await this.notificarReserva(user, "Casino de prueba", "2021-10-01");
 
-        if (!reserva.success) {
-          // Reintentos
-          for (let i = 1; i <= MAX_RETRIES; i++) {
-            logger.log(`Intento ${i + 1} para ${user.name}...`);
-            reserva = await this.reservaCasino(user);
+        // if (!reserva.success) {
+        //   // Reintentos
+        //   for (let i = 1; i <= MAX_RETRIES; i++) {
+        //     this.logger.log(`Intento ${i + 1} para ${user.name}...`);
+        //     reserva = await this.reservaCasino(user);
 
-            if (reserva.success) {
-              logger.log(
-                `Reserva exitosa para ${user.name} en el intento ${i + 1}.`,
-              );
-              break;
-            }
-          }
+        //     if (reserva.success) {
+        //       this.logger.log(
+        //         `Reserva exitosa para ${user.name} en el intento ${i + 1}.`,
+        //       );
+        //       break;
+        //     }
+        //   }
 
-          // Si no se pudo reservar después de los intentos
-          if (!reserva.success) {
-            usersWithErrors.push({ user, error: reserva.error });
-            user = undefined;
-          }
-        }
+        //   // Si no se pudo reservar después de los intentos
+        //   if (!reserva.success) {
+        //     usersWithErrors.push({ user, error: reserva.error });
+        //     user = undefined;
+        //   }
+        // }
       }
     }
 
@@ -140,15 +101,13 @@ export class PuppeterService {
       };
 
       await this.mailService.sendEmail(emailOptions);
-      logger.log(
+      this.logger.log(
         `Correo de error enviado a administrador sobre ${usersWithErrors.length} usuarios.`,
       );
     }
   }
 
   async reservaCasino(user: User) {
-    const logger = new Logger("Reserva de casino");
-
     const SERVICIOS =
       "#kt_aside_menu > ul > li:nth-child(2) > a > span.menu-text";
 
@@ -158,7 +117,7 @@ export class PuppeterService {
     puppeteer.use(StealthPlugin());
 
     const browser = await puppeteer.launch({
-      headless: true,
+      headless: false,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
     });
     try {
@@ -182,9 +141,9 @@ export class PuppeterService {
 
       await page.click("#kt_aside_mobile_toggle");
 
-      await this.clickWithJS(page, SERVICIOS);
+      await clickWithJS(page, SERVICIOS, false);
 
-      await this.clickWithJS(page, GESTION_HUMANA);
+      await clickWithJS(page, GESTION_HUMANA, false);
 
       await this.clickCasinoElement(page);
 
@@ -198,7 +157,7 @@ export class PuppeterService {
 
         await browser.close();
         this.isBrowserOpen = false;
-        logger.log(`[${user.name}] - ya ha realizado la reserva`);
+        this.logger.log(`[${user.name}] - ya ha realizado la reserva`);
         return {
           success: true,
           error: undefined,
@@ -224,7 +183,7 @@ export class PuppeterService {
           el.textContent?.trim(),
         )) || "";
 
-      logger.log(`[${user.name}] - Reserva realizada`);
+      this.logger.log(`[${user.name}] - Reserva realizada`);
 
       await this.notificarReserva(user, casino, fecha);
 
@@ -233,7 +192,7 @@ export class PuppeterService {
         error: undefined,
       };
     } catch (error) {
-      logger.error(error.message);
+      this.logger.error(error.message);
       return {
         success: false,
         error: error.message,
@@ -241,29 +200,6 @@ export class PuppeterService {
     } finally {
       await browser.close();
       this.isBrowserOpen = false;
-    }
-  }
-
-  async clickWithJS(page: Page, selectorToClick: string) {
-    try {
-      // Esperamos que el selector esté visible en la página
-      await page.waitForSelector(selectorToClick);
-
-      // Realizamos el clic mediante evaluación en el contexto del navegador
-      const result = await page.evaluate((selector) => {
-        const element = document.querySelector(selector);
-        if (element) {
-          (element as HTMLElement).click();
-          return true;
-        }
-        return false;
-      }, selectorToClick);
-
-      if (!result) {
-        return false;
-      }
-    } catch (error) {
-      return false;
     }
   }
 
@@ -278,20 +214,27 @@ export class PuppeterService {
     });
   }
 
-  async notificarReserva(user: User, casino: string, fecha: string) {
+  async notificarReserva(
+    user: User,
+    casino: string,
+    fecha: string,
+  ): Promise<boolean> {
     const pathScreenshot = `reservas/${user.cedula}/screenshot.png`;
 
+    // Verificamos si el archivo de la captura de pantalla existe
     const exists = existsSync(pathScreenshot);
 
+    // Construimos el cuerpo del correo en formato HTML
     const htmlBody = `
-    <h1>Reserva de almuezo en ${casino}</h1>
-    <p>Estimado ${user.name},</p>
-    <p>Aquí tienes la confirmación de tu reserva para el día ${fecha}.</p>
-  `;
+      <h1>Reserva de almuerzo en ${casino}</h1>
+      <p>Estimado/a ${user.name},</p>
+      <p>Nos complace confirmar tu reserva para el día ${fecha} en ${casino}.</p>
+    `;
 
+    // Configuración del correo electrónico
     const emailOptions: sendMailOptions = {
-      to: user.emailNotification ?? user.email,
-      subject: `Reserva de casino ${user.name} [${casino} - ${fecha}]`,
+      to: user.emailNotification ?? user.email, // Usamos emailNotification si está disponible, sino el email principal
+      subject: `Confirmación de reserva ${user.name} [${casino} - ${fecha}]`,
       htmlBody,
       attachments: exists
         ? [
@@ -303,16 +246,18 @@ export class PuppeterService {
         : [],
     };
 
-    const enviado = await this.mailService.sendEmail(emailOptions);
+    try {
+      const enviado = await this.mailService.sendEmail(emailOptions);
 
-    if (enviado) {
-      try {
+      if (enviado && exists) {
+        // Eliminamos el archivo si fue enviado y existe
         unlinkSync(pathScreenshot);
-      } catch (error) {
-        console.error("Error al eliminar el archivo:", error);
       }
-    }
 
-    return enviado;
+      return enviado;
+    } catch (error) {
+      console.error("Error al enviar el correo o eliminar la captura:", error);
+      return false;
+    }
   }
 }
