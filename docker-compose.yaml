@@ -12,5 +12,3 @@ services:
       - "${APP_PORT}:${APP_PORT}"
     env_file:
       - .env
-    volumes:
-      - /data/database.sqlite:/data/database.sqlite
