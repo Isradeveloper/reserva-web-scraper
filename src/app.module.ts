@@ -15,8 +15,9 @@ import { envSchema } from "./config/joi.validation";
     CasinoReservationModule,
     UsersModule,
     TypeOrmModule.forRoot({
-      type: "sqlite",
-      database: "data/database.sqlite",
+      type: "postgres",
+      url: process.env.DATABASE_URL,
+      ssl: true,
       synchronize: true,
       entities: [User],
     }),
