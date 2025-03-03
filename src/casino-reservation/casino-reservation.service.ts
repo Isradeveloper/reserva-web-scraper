@@ -24,7 +24,7 @@ export class CasinoReservationService {
     private readonly mailService: MailerSendService,
   ) {}
 
-  @Cron("*/30 * * * * *", {
+  @Cron("0 6 * * *", {
     //* Todos los días a las 6 am
     name: "reserva automática de almuerzo",
     timeZone: "America/Bogota",
