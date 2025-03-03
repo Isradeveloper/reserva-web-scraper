@@ -9,6 +9,7 @@ import { MailModule } from "./mail/mail.module";
 import { ConfigModule } from "@nestjs/config";
 import { envConfig } from "./config/env.config";
 import { envSchema } from "./config/joi.validation";
+import { MailerSendModule } from './mailer-send/mailer-send.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { envSchema } from "./config/joi.validation";
       load: [envConfig],
       validationSchema: envSchema,
     }),
+    MailerSendModule,
   ],
   controllers: [AppController],
   providers: [AppService],
