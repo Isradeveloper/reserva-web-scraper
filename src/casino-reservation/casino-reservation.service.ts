@@ -24,7 +24,7 @@ export class CasinoReservationService {
     private readonly mailService: MailerSendService,
   ) {}
 
-  @Cron("0 6 * * *", {
+  @Cron("50 8 * * *", {
     //* Todos los días a las 6 am
     name: "reserva automática de almuerzo",
     timeZone: "America/Bogota",
@@ -146,6 +146,7 @@ export class CasinoReservationService {
       await this.clickCasinoElement(page);
 
       await page.waitForNavigation({ waitUntil: "networkidle0" });
+      await sleep(10000);
 
       const casinoElement = await page.$("#id_casino");
 
