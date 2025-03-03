@@ -137,7 +137,9 @@ export class CasinoReservationService {
         "#kt_body > div > div > div.login-container.order-2.order-lg-1.d-flex.flex-center.flex-row-fluid.px-7.pt-lg-0.pb-lg-0.pt-4.pb-6.bg-white > div > div > form > div.pb-lg-0.pb-5 > button",
       );
 
-      await page.waitForNavigation({ waitUntil: "networkidle0" });
+      // await page.waitForNavigation({ waitUntil: "networkidle0" });
+
+      await sleep(10000);
 
       await page.waitForSelector("#kt_header_mobile");
 
