@@ -24,7 +24,7 @@ export class CasinoReservationService {
     private readonly mailService: MailerSendService,
   ) {}
 
-  @Cron("50 8 * * *", {
+  @Cron("0 6 * * *", {
     //* Todos los días a las 6 am
     name: "reserva automática de almuerzo",
     timeZone: "America/Bogota",
@@ -146,6 +146,7 @@ export class CasinoReservationService {
       await this.clickCasinoElement(page);
 
       await page.waitForNavigation({ waitUntil: "networkidle0" });
+
       await sleep(10000);
 
       const casinoElement = await page.$("#id_casino");
@@ -153,6 +154,7 @@ export class CasinoReservationService {
       if (!casinoElement) {
         // await page.click("#cancel_btn");
         // await page.waitForNavigation({ waitUntil: "networkidle0" });
+        // await sleep(10000);
 
         await browser.close();
         this.isBrowserOpen = false;
@@ -232,7 +234,8 @@ export class CasinoReservationService {
 
     // Configuración del correo electrónico
     const emailOptions: SendMail = {
-      to: user.emailNotification ?? user.email,
+      // to: user.emailNotification,
+      to: "theisratruji@gmail.com",
       subject: `Confirmación de reserva ${user.name} [${casino} - ${fecha}]`,
       recipientName: user.name,
       htmlContent,
