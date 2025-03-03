@@ -1,33 +1,28 @@
-import {
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-} from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { InjectRepository } from "@nestjs/typeorm";
-import { error } from "console";
 import { existsSync, unlinkSync } from "fs";
 import { Page } from "puppeteer";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { clickWithJS, ImgToB64, sleep } from "src/common/helpers";
 import { createFolder } from "src/common/helpers/create-folder";
-import { sendMailOptions } from "src/mail/interfaces/send-mail-options.interface";
-import { MailService } from "src/mail/mail.service";
+import { SendMail } from "src/mailer-send/interfaces/send-mail.interface";
+import { MailerSendService } from "src/mailer-send/mailer-send.service";
 import { User } from "src/users/entities/user.entity";
 import { Repository } from "typeorm";
 
 @Injectable()
 export class CasinoReservationService {
+  private isBrowserOpen = false;
+  private logger = new Logger(CasinoReservationService.name);
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
 
-    private readonly mailService: MailService,
+    private readonly mailService: MailerSendService,
   ) {}
-
-  private isBrowserOpen = false;
-  private logger = new Logger(CasinoReservationService.name);
 
   @Cron("*/30 * * * * *", {
     //* Todos los días a las 6 am
@@ -58,7 +53,6 @@ export class CasinoReservationService {
       if (user && !this.isBrowserOpen) {
         this.logger.log(`Procesando reserva para ${user.name}...`);
         let reserva = await this.reservaCasino(user);
-        // await this.notificarReserva(user, "Casino de prueba", "2021-10-01");
 
         if (!reserva.success) {
           // Reintentos
@@ -85,7 +79,7 @@ export class CasinoReservationService {
 
     if (usersWithErrors.length > 0) {
       // Generación del correo HTML
-      const htmlBody = `
+      const htmlContent = `
       <h1>Errores en reservas de almuerzo</h1>
       <p>Estimado administrador,</p>
       <p>Se presentaron errores al realizar las reservas de almuerzo para los siguientes usuarios:</p>
@@ -94,13 +88,13 @@ export class CasinoReservationService {
       </ul>
         `;
 
-      const emailOptions: sendMailOptions = {
+      const emailOptions: SendMail = {
         to: "israel.trujillo@energiasolarsa.com",
         subject: "Errores en reservas de almuerzo",
-        htmlBody,
+        htmlContent,
       };
 
-      await this.mailService.sendEmail(emailOptions);
+      await this.mailService.sendMail(emailOptions);
       this.logger.log(
         `Correo de error enviado a administrador sobre ${usersWithErrors.length} usuarios.`,
       );
@@ -229,17 +223,18 @@ export class CasinoReservationService {
     const exists = existsSync(pathScreenshot);
 
     // Construimos el cuerpo del correo en formato HTML
-    const htmlBody = `
+    const htmlContent = `
       <h1>Reserva de almuerzo en ${casino}</h1>
       <p>Estimado/a ${user.name},</p>
       <p>Nos complace confirmar tu reserva para el día ${fecha} en ${casino}.</p>
     `;
 
     // Configuración del correo electrónico
-    const emailOptions: sendMailOptions = {
-      to: user.emailNotification ?? user.email, // Usamos emailNotification si está disponible, sino el email principal
+    const emailOptions: SendMail = {
+      to: user.emailNotification ?? user.email,
       subject: `Confirmación de reserva ${user.name} [${casino} - ${fecha}]`,
-      htmlBody,
+      recipientName: user.name,
+      htmlContent,
       attachments: exists
         ? [
             {
@@ -251,7 +246,7 @@ export class CasinoReservationService {
     };
 
     try {
-      const enviado = await this.mailService.sendEmail(emailOptions);
+      const enviado = await this.mailService.sendMail(emailOptions);
 
       if (enviado && exists) {
         // Eliminamos el archivo si fue enviado y existe
