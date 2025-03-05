@@ -40,7 +40,7 @@ export class CasinoReservationService {
     }
 
     const users = await this.userRepository.find({
-      select: { password: true, cedula: true, email: true, name: true },
+      select: { password: true, cedula: true, email: true, name: true, emailNotification: true },
     });
 
     const usersWithoutSuccess: User[] = [...users];
@@ -257,7 +257,7 @@ export class CasinoReservationService {
       if (enviado && exists) {
         // Eliminamos el archivo si fue enviado y existe
         unlinkSync(pathScreenshot);
-      }
+      } 
 
       return enviado;
     } catch (error) {
