@@ -8,4 +8,9 @@ export const envSchema = Joi.object({
 
   MAIL_USER: Joi.string().required(),
   MAIL_PASSWORD: Joi.string().required(),
+
+  MAILERSEND_API_KEY: Joi.string().required(),
+  MAILER_SENDER: Joi.string().required(),
+
+  RESEND_API_KEY: Joi.string().required(),
 });

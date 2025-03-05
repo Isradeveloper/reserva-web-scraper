@@ -10,6 +10,8 @@ import { ConfigModule } from "@nestjs/config";
 import { envConfig } from "./config/env.config";
 import { envSchema } from "./config/joi.validation";
 import { MailerSendModule } from './mailer-send/mailer-send.module';
+import { ResendService } from './resend/resend.service';
+import { ResendModule } from './resend/resend.module';
 
 @Module({
   imports: [
@@ -28,8 +30,9 @@ import { MailerSendModule } from './mailer-send/mailer-send.module';
       validationSchema: envSchema,
     }),
     MailerSendModule,
+    ResendModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, ResendService],
 })
 export class AppModule {}

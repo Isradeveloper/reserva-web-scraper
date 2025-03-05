@@ -11,4 +11,9 @@ export const envConfig = () => ({
   TZ: "America/Bogota",
   MAIL_USER: process.env.MAIL_USER,
   MAIL_PASSWORD: process.env.MAIL_PASSWORD,
+
+  MAILERSEND_API_KEY: process.env.MAILERSEND_API_KEY,
+  MAILER_SENDER: process.env.MAILER_SENDER,
+
+  RESEND_API_KEY: process.env.RESEND_API_KEY,
 });

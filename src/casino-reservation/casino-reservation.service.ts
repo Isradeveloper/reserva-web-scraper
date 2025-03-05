@@ -1,14 +1,17 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { InjectRepository } from "@nestjs/typeorm";
-import { existsSync, unlinkSync } from "fs";
+import { existsSync, readFileSync, unlinkSync } from "fs";
 import { Page } from "puppeteer";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { clickWithJS, ImgToB64, sleep } from "src/common/helpers";
 import { createFolder } from "src/common/helpers/create-folder";
-import { SendMail } from "src/mailer-send/interfaces/send-mail.interface";
-import { MailerSendService } from "src/mailer-send/mailer-send.service";
+import {
+  Attachment,
+  SendMail,
+} from "src/resend/interfaces/send-mail.interface";
+import { ResendService } from "src/resend/resend.service";
 import { User } from "src/users/entities/user.entity";
 import { Repository } from "typeorm";
 
@@ -21,7 +24,7 @@ export class CasinoReservationService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
 
-    private readonly mailService: MailerSendService,
+    private readonly mailService: ResendService,
   ) {}
 
   @Cron("0 6 * * *", {
@@ -220,33 +223,32 @@ export class CasinoReservationService {
     casino: string,
     fecha: string,
   ): Promise<boolean> {
+    let attachments: Attachment[] = [];
+
     const pathScreenshot = `reservas/${user.cedula}/screenshot.png`;
 
-    // Verificamos si el archivo de la captura de pantalla existe
     const exists = existsSync(pathScreenshot);
 
-    // Construimos el cuerpo del correo en formato HTML
+    if (exists) {
+      const content = readFileSync(pathScreenshot).toString("base64");
+
+      attachments.push({
+        filename: "evidencia.png",
+        content,
+        type: "image/png",
+      });
+    }
+
     const htmlContent = `
       <h1>Reserva de almuerzo en ${casino}</h1>
       <p>Estimado/a ${user.name},</p>
       <p>Nos complace confirmar tu reserva para el día ${fecha} en ${casino}.</p>
     `;
-
-    // Configuración del correo electrónico
     const emailOptions: SendMail = {
-      // to: user.emailNotification,
-      to: "theisratruji@gmail.com",
+      to: user.emailNotification,
       subject: `Confirmación de reserva ${user.name} [${casino} - ${fecha}]`,
-      recipientName: user.name,
       htmlContent,
-      attachments: exists
-        ? [
-            {
-              filename: "evidencia.png",
-              path: pathScreenshot,
-            },
-          ]
-        : [],
+      attachments,
     };
 
     try {
