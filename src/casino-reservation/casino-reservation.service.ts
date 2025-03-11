@@ -33,14 +33,20 @@ export class CasinoReservationService {
     timeZone: "America/Bogota",
   })
   async reservarUsuarios() {
-    const MAX_RETRIES = 5;
+    const MAX_RETRIES = 10;
 
     if (!this.isBrowserOpen) {
       this.logger.log("Ejecutando cron job de reservas de casino...");
     }
 
     const users = await this.userRepository.find({
-      select: { password: true, cedula: true, email: true, name: true, emailNotification: true },
+      select: {
+        password: true,
+        cedula: true,
+        email: true,
+        name: true,
+        emailNotification: true,
+      },
     });
 
     const usersWithoutSuccess: User[] = [...users];
@@ -257,7 +263,7 @@ export class CasinoReservationService {
       if (enviado && exists) {
         // Eliminamos el archivo si fue enviado y existe
         unlinkSync(pathScreenshot);
-      } 
+      }
 
       return enviado;
     } catch (error) {
