@@ -2,28 +2,23 @@ import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
 import { InjectRepository } from "@nestjs/typeorm";
 import { existsSync, readFileSync, unlinkSync } from "fs";
-import { Page } from "puppeteer";
 import puppeteer from "puppeteer-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { clickWithJS, ImgToB64, sleep } from "src/common/helpers";
+import { clickWithJS, sleep } from "src/common/helpers";
 import { createFolder } from "src/common/helpers/create-folder";
-import {
-  Attachment,
-  SendMail,
-} from "src/resend/interfaces/send-mail.interface";
 import { ResendService } from "src/resend/resend.service";
 import { User } from "src/users/entities/user.entity";
 import { Repository } from "typeorm";
+import { Page } from "puppeteer";
 
 @Injectable()
 export class CasinoReservationService {
-  private isBrowserOpen = false;
   private logger = new Logger(CasinoReservationService.name);
+  private readonly MAX_RETRIES = 5;
 
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-
     private readonly mailService: ResendService,
   ) {}
 
@@ -33,11 +28,7 @@ export class CasinoReservationService {
     timeZone: "America/Bogota",
   })
   async reservarUsuarios() {
-    const MAX_RETRIES = 10;
-
-    if (!this.isBrowserOpen) {
-      this.logger.log("Ejecutando cron job de reservas de casino...");
-    }
+    this.logger.log("Ejecutando cron job de reservas de casino...");
 
     const users = await this.userRepository.find({
       select: {
@@ -49,64 +40,28 @@ export class CasinoReservationService {
       },
     });
 
-    const usersWithoutSuccess: User[] = [...users];
+    this.logger.log(`Usuarios encontrados: ${users.length}`);
+
     const usersWithErrors: { user: User; error: string | undefined }[] = [];
 
-    if (!this.isBrowserOpen) {
-      this.logger.log(`Usuarios encontrados: ${users.length}`);
-    }
+    for (const user of users) {
+      this.logger.log(`Procesando reserva para ${user.name}...`);
+      let reserva = await this.reservaCasino(user);
 
-    while (usersWithoutSuccess.length > 0) {
-      let user = usersWithoutSuccess.shift();
+      let attempt = 0;
+      while (!reserva.success && attempt < this.MAX_RETRIES) {
+        attempt++;
+        this.logger.log(`Reintentando (${attempt}) para ${user.name}...`);
+        reserva = await this.reservaCasino(user);
+      }
 
-      if (user && !this.isBrowserOpen) {
-        this.logger.log(`Procesando reserva para ${user.name}...`);
-        let reserva = await this.reservaCasino(user);
-
-        if (!reserva.success) {
-          // Reintentos
-          for (let i = 1; i <= MAX_RETRIES; i++) {
-            this.logger.log(`Intento ${i + 1} para ${user.name}...`);
-            reserva = await this.reservaCasino(user);
-
-            if (reserva.success) {
-              this.logger.log(
-                `Reserva exitosa para ${user.name} en el intento ${i + 1}.`,
-              );
-              break;
-            }
-          }
-
-          // Si no se pudo reservar después de los intentos
-          if (!reserva.success) {
-            usersWithErrors.push({ user, error: reserva.error });
-            user = undefined;
-          }
-        }
+      if (!reserva.success) {
+        usersWithErrors.push({ user, error: reserva.error });
       }
     }
 
     if (usersWithErrors.length > 0) {
-      // Generación del correo HTML
-      const htmlContent = `
-      <h1>Errores en reservas de almuerzo</h1>
-      <p>Estimado administrador,</p>
-      <p>Se presentaron errores al realizar las reservas de almuerzo para los siguientes usuarios:</p>
-      <ul>
-        ${usersWithErrors.map(({ user, error }) => `<li>${user.name}: ${error}</li>`).join("")}
-      </ul>
-        `;
-
-      const emailOptions: SendMail = {
-        to: "israel.trujillo@energiasolarsa.com",
-        subject: "Errores en reservas de almuerzo",
-        htmlContent,
-      };
-
-      await this.mailService.sendMail(emailOptions);
-      this.logger.log(
-        `Correo de error enviado a administrador sobre ${usersWithErrors.length} usuarios.`,
-      );
+      await this.enviarCorreoErrores(usersWithErrors);
     }
   }
 
@@ -127,8 +82,6 @@ export class CasinoReservationService {
       const page = await browser.newPage();
 
       page.setDefaultNavigationTimeout(300000);
-
-      this.isBrowserOpen = true;
 
       await page.goto("https://digital.tecnoglass.net/", {
         waitUntil: "networkidle0",
@@ -166,7 +119,6 @@ export class CasinoReservationService {
         // await sleep(10000);
 
         await browser.close();
-        this.isBrowserOpen = false;
         this.logger.log(`[${user.name}] - ya ha realizado la reserva`);
         return {
           success: true,
@@ -209,66 +161,67 @@ export class CasinoReservationService {
       };
     } finally {
       await browser.close();
-      this.isBrowserOpen = false;
     }
   }
 
   async clickCasinoElement(page: Page) {
+    await page.waitForSelector("span.menu-text");
     await page.evaluate(() => {
       const casinoElement = [
         ...document.querySelectorAll("span.menu-text"),
-      ].filter((el) => el.textContent?.trim() === "Casino")[0];
+      ].find((el) => el.textContent?.trim() === "Casino");
       if (casinoElement instanceof HTMLElement) {
         casinoElement.click();
       }
     });
   }
 
-  async notificarReserva(
-    user: User,
-    casino: string,
-    fecha: string,
-  ): Promise<boolean> {
-    let attachments: Attachment[] = [];
-
+  async notificarReserva(user: User, casino: string, fecha: string) {
     const pathScreenshot = `reservas/${user.cedula}/screenshot.png`;
-
     const exists = existsSync(pathScreenshot);
+    const attachments = exists
+      ? [
+          {
+            filename: "evidencia.png",
+            content: readFileSync(pathScreenshot).toString("base64"),
+            type: "image/png",
+          },
+        ]
+      : [];
 
-    if (exists) {
-      const content = readFileSync(pathScreenshot).toString("base64");
-
-      attachments.push({
-        filename: "evidencia.png",
-        content,
-        type: "image/png",
-      });
-    }
-
-    const htmlContent = `
-      <h1>Reserva de almuerzo en ${casino}</h1>
-      <p>Estimado/a ${user.name},</p>
-      <p>Nos complace confirmar tu reserva para el día ${fecha} en ${casino}.</p>
-    `;
-    const emailOptions: SendMail = {
+    const emailOptions = {
       to: user.emailNotification,
       subject: `Confirmación de reserva ${user.name} [${casino} - ${fecha}]`,
-      htmlContent,
+      htmlContent: `<h1>Reserva de almuerzo en ${casino}</h1><p>Estimado/a ${user.name},</p><p>Tu reserva para el día ${fecha} en ${casino} ha sido confirmada.</p>`,
       attachments,
     };
 
     try {
       const enviado = await this.mailService.sendMail(emailOptions);
-
-      if (enviado && exists) {
-        // Eliminamos el archivo si fue enviado y existe
-        unlinkSync(pathScreenshot);
-      }
-
+      if (enviado && exists) unlinkSync(pathScreenshot);
       return enviado;
     } catch (error) {
       console.error("Error al enviar el correo o eliminar la captura:", error);
       return false;
     }
+  }
+
+  async enviarCorreoErrores(
+    usersWithErrors: { user: User; error: string | undefined }[],
+  ) {
+    const htmlContent = `
+      <h1>Errores en reservas de almuerzo</h1>
+      <p>Se presentaron errores en las reservas de almuerzo para los siguientes usuarios:</p>
+      <ul>${usersWithErrors.map(({ user, error }) => `<li>${user.name}: ${error}</li>`).join("")}</ul>`;
+
+    await this.mailService.sendMail({
+      to: "israel.trujillo@energiasolarsa.com",
+      subject: "Errores en reservas de almuerzo",
+      htmlContent,
+    });
+
+    this.logger.log(
+      `Correo de error enviado sobre ${usersWithErrors.length} usuarios.`,
+    );
   }
 }
