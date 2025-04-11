@@ -18,7 +18,7 @@ export class ResendService {
     attachments,
   }: SendMail) {
     const { data, error } = await this.resend.emails.send({
-      from: "info@reserva-casino.condevs.com.co",
+      from: "info@isradeveloper.com",
       to,
       subject,
       html: htmlContent || "",
